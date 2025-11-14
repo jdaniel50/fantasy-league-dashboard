@@ -72,3 +72,42 @@
 
     .small-label {
       font-size: 0.85rem;
+      opacity: 0.85;
+    }
+
+    .power-input {
+      width: 50px;
+      padding: 0.3rem;
+      border-radius: 4px;
+      border: none;
+      background: #21263f;
+      color: #fff;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Fantasy League Dashboard</h1>
+
+<!-- LEAGUE TABS -->
+<div class="league-tabs">
+  <button class="tab-btn" data-league="lor">League of Record</button>
+  <button class="tab-btn" data-league="ffl">FFL</button>
+  <button class="tab-btn" data-league="dynasty">Dynasty Champs</button>
+</div>
+
+<!-- SUBTABS -->
+<div class="subtabs" id="subtabs" style="display:none;">
+  <button class="tab-btn" data-section="standings">Standings</button>
+  <button class="tab-btn" data-section="matchups">Matchups</button>
+  <button class="tab-btn" data-section="power">Power Rankings</button>
+</div>
+
+<div id="content">
+  <!-- Dynamic content is injected here by JS -->
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
