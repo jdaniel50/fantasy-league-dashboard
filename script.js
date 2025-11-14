@@ -69,12 +69,32 @@ async function fetchJson(url) {
 }
 
 function teamName(roster, ownerMap) {
+  if (!roster) return "Unknown";
   const owner = ownerMap[roster.owner_id];
   return (
     (owner && owner.metadata && owner.metadata.team_name) ||
     (owner && owner.display_name) ||
     "Unknown"
   );
+}
+
+function teamAvatarHtml(roster, ownerMap) {
+  if (!roster) {
+    return "Unknown";
+  }
+  const owner = ownerMap[roster.owner_id];
+  const name = teamName(roster, ownerMap);
+  const avatarId = owner && owner.avatar;
+  if (!avatarId) {
+    return `<div class="team-with-avatar"><span>${name}</span></div>`;
+  }
+  const url = `https://sleepercdn.com/avatars/thumbs/${avatarId}`;
+  return `
+    <div class="team-with-avatar">
+      <img class="avatar" src="${url}" alt="${name} logo" />
+      <span>${name}</span>
+    </div>
+  `;
 }
 
 /* ------------------------------------------
@@ -219,7 +239,6 @@ function buildStandingsTable(league, divisionName, sortedRosters, ownerMap) {
   let rows = "";
 
   filtered.forEach((team, idx) => {
-    const name = teamName(team, ownerMap);
     const wins = team.settings.wins || 0;
     const losses = team.settings.losses || 0;
     const pf = Number(team.settings.fpts ?? 0).toFixed(2);
@@ -244,7 +263,7 @@ function buildStandingsTable(league, divisionName, sortedRosters, ownerMap) {
     rows += `
       <tr>
         <td>${thisRank}</td>
-        <td>${name}</td>
+        <td>${teamAvatarHtml(team, ownerMap)}</td>
         <td>${wins}-${losses}</td>
         <td>${pf}</td>
         <td>${changeDisplay}</td>
@@ -316,9 +335,6 @@ async function renderMatchups(league) {
       const t1 = teams[0];
       const t2 = teams[1];
 
-      const n1 = teamName(rosterMap[t1.roster_id], ownerMap);
-      const n2 = t2 ? teamName(rosterMap[t2.roster_id], ownerMap) : "(Bye)";
-
       const p1 = typeof t1.points === "number" ? t1.points.toFixed(2) : "-";
       const p2 =
         t2 && typeof t2.points === "number" ? t2.points.toFixed(2) : "-";
@@ -330,8 +346,18 @@ async function renderMatchups(league) {
         <h3>Matchup ${mid}</h3>
         <table>
           <tr><th>Team</th><th>Points</th></tr>
-          <tr><td>${n1}</td><td>${p1}</td></tr>
-          ${t2 ? `<tr><td>${n2}</td><td>${p2}</td></tr>` : ""}
+          <tr>
+            <td>${teamAvatarHtml(rosterMap[t1.roster_id], ownerMap)}</td>
+            <td>${p1}</td>
+          </tr>
+          ${
+            t2
+              ? `<tr>
+                  <td>${teamAvatarHtml(rosterMap[t2.roster_id], ownerMap)}</td>
+                  <td>${p2}</td>
+                </tr>`
+              : ""
+          }
         </table>
         <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
       `;
@@ -368,8 +394,6 @@ function renderPowerRankings(league) {
   `;
 
   rosters.forEach(r => {
-    const name = teamName(r, ownerMap);
-
     const thisKey = `power_${league.id}_${week}_${r.roster_id}`;
     const prevKey = `power_${league.id}_${prevWeek}_${r.roster_id}`;
     const savedRank = localStorage.getItem(thisKey) || "";
@@ -391,7 +415,7 @@ function renderPowerRankings(league) {
 
     html += `
       <tr>
-        <td>${name}</td>
+        <td>${teamAvatarHtml(r, ownerMap)}</td>
         <td>
           <input class="power-input" type="number" min="1" max="${rosters.length}"
             data-save="${thisKey}"
