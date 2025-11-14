@@ -1,5 +1,5 @@
 // Replace this with your real Sleeper league id
-const LEAGUE_ID = 1186844188245356544;
+const LEAGUE_ID = "1186844188245356544";
 
 const weekSelect = document.getElementById("week-select");
 const refreshButton = document.getElementById("refresh");
