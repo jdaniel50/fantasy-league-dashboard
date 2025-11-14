@@ -1,166 +1,272 @@
-// Replace this with your real Sleeper league id
-const LEAGUE_ID =1186844188245356544;
+/* ------------------------------------------
+   CONFIGURATION
+-------------------------------------------*/
 
-const weekSelect = document.getElementById("week-select");
-const refreshButton = document.getElementById("refresh");
-const matchupsContainer = document.getElementById("matchups");
-const errorBox = document.getElementById("error");
-const currentWeekLabel = document.getElementById("current-week-label");
-
-// We will cache some lookups so we do not call the API more than needed
-let rosterById = {};
-let userById = {};
-let currentWeek = 1;
-
-async function init() {
-  try {
-    errorBox.textContent = "";
-
-    // 1. Get current NFL state to know the active week
-    const state = await fetchJson("https://api.sleeper.app/v1/state/nfl");
-    currentWeek = state.display_week || state.week || 1;
-    currentWeekLabel.textContent = `Current NFL week: ${currentWeek}`;
-
-    // 2. Load league rosters and users once
-    await loadRostersAndUsers();
-
-    // 3. Populate week dropdown (you can change the maxWeek)
-    const maxWeek = 18;
-    for (let w = 1; w <= maxWeek; w++) {
-      const option = document.createElement("option");
-      option.value = w;
-      option.textContent = `Week ${w}`;
-      if (w === currentWeek) option.selected = true;
-      weekSelect.appendChild(option);
+const LEAGUES = {
+  lor: {
+    name: "League of Record",
+    id: "1186844188245356544",
+    hasDivisions: true,
+    divisions: {
+      East: [
+        "Gridiron Man",
+        "Scuttlebucs",
+        "Pigskin Prophtz",
+        "Go Birds",
+        "Game of Throws"
+      ],
+      West: [
+        "Mighty Mallards",
+        "The Aman-Ra Stars",
+        "The Juggernauts",
+        "Overdrive",
+        "Black Panther"
+      ]
     }
+  },
 
-    // 4. Load matchups for the current week
-    await loadMatchups(currentWeek);
-  } catch (err) {
-    console.error(err);
-    errorBox.textContent = "Something went wrong loading the dashboard.";
-  }
-}
+  ffl: {
+    name: "FFL",
+    id: "1257084943821967360",
+    hasDivisions: false
+  },
 
-async function loadRostersAndUsers() {
-  const [rosters, users] = await Promise.all([
-    fetchJson(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/rosters`),
-    fetchJson(`https://api.sleeper.app/v1/league/${LEAGUE_ID}/users`)
-  ]);
-
-  rosterById = {};
-  for (const roster of rosters) {
-    rosterById[roster.roster_id] = roster;
-  }
-
-  userById = {};
-  for (const user of users) {
-    userById[user.user_id] = user;
-  }
-}
-
-// Helper to fetch JSON with a little error handling
-async function fetchJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Request failed: ${res.status} ${res.statusText}`);
-  }
-  return res.json();
-}
-
-// Build a lookup from roster_id to a nice team label
-function getTeamLabel(roster) {
-  if (!roster) return "Unknown team";
-
-  const ownerId = roster.owner_id;
-  const user = userById[ownerId];
-  const displayName = user?.display_name || user?.username || "Unknown";
-
-  const nickname = user?.metadata?.team_name;
-  if (nickname) {
-    return `${nickname} (${displayName})`;
-  }
-  return displayName;
-}
-
-async function loadMatchups(week) {
-  errorBox.textContent = "";
-  matchupsContainer.textContent = "Loading matchups...";
-
-  try {
-    const matchups = await fetchJson(
-      `https://api.sleeper.app/v1/league/${LEAGUE_ID}/matchups/${week}`
-    );
-
-    // Group by matchup_id so we can pair two teams per game
-    const byMatchupId = {};
-    for (const m of matchups) {
-      if (!byMatchupId[m.matchup_id]) {
-        byMatchupId[m.matchup_id] = [];
-      }
-      byMatchupId[m.matchup_id].push(m);
+  dynasty: {
+    name: "Dynasty Champs",
+    id: "1186825886808555520",
+    hasDivisions: true,
+    divisions: {
+      East: [
+        "Black Panther",
+        "Knights of Columbus",
+        "Venomous Vipers",
+        "Swamp Pirates",
+        "Baby Got Dak"
+      ],
+      West: [
+        "Gotham City",
+        "WillXposU",
+        "Howling Comandos",
+        "Aggressive Chickens",
+        "Game of Throws"
+      ]
     }
-
-    matchupsContainer.textContent = "";
-
-    const matchupIds = Object.keys(byMatchupId).sort(
-      (a, b) => Number(a) - Number(b)
-    );
-
-    if (matchupIds.length === 0) {
-      matchupsContainer.textContent = "No matchups found for this week.";
-      return;
-    }
-
-    for (const id of matchupIds) {
-      const teams = byMatchupId[id];
-
-      // Some odd weeks (like playoffs or byes) may have single team entries
-      const team1 = teams[0];
-      const team2 = teams[1];
-
-      const card = document.createElement("div");
-      card.className = "matchup";
-
-      const header = document.createElement("div");
-      header.className = "matchup-header";
-      header.textContent = `Matchup ${id}`;
-      card.appendChild(header);
-
-      const teamRow1 = document.createElement("div");
-      teamRow1.className = "team-row";
-      const t1Label = getTeamLabel(rosterById[team1?.roster_id]);
-      teamRow1.innerHTML = `
-        <span class="team-name">${t1Label}</span>
-        <span>${team1?.points?.toFixed(2) ?? "-"}</span>
-      `;
-      card.appendChild(teamRow1);
-
-      if (team2) {
-        const teamRow2 = document.createElement("div");
-        teamRow2.className = "team-row";
-        const t2Label = getTeamLabel(rosterById[team2.roster_id]);
-        teamRow2.innerHTML = `
-          <span class="team-name">${t2Label}</span>
-          <span>${team2.points.toFixed(2)}</span>
-        `;
-        card.appendChild(teamRow2);
-      }
-
-      matchupsContainer.appendChild(card);
-    }
-  } catch (err) {
-    console.error(err);
-    matchupsContainer.textContent = "";
-    errorBox.textContent = "Could not load matchups for that week.";
   }
-}
+};
 
-// Hook up controls
-refreshButton.addEventListener("click", () => {
-  const week = Number(weekSelect.value || currentWeek);
-  loadMatchups(week);
+let currentLeague = null;
+let currentSection = null;
+let currentWeek = null;
+
+// Cache league data
+const leagueDataCache = {};
+
+
+/* ------------------------------------------
+   INITIALIZATION
+-------------------------------------------*/
+
+document.querySelectorAll(".league-tabs .tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    // activate
+    document.querySelectorAll(".league-tabs .tab-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+
+    const key = btn.dataset.league;
+    currentLeague = LEAGUES[key];
+
+    showSubtabs();
+    loadSection("standings");
+  });
 });
 
-// Kick everything off
+document.querySelectorAll("#subtabs .tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    loadSection(btn.dataset.section);
+  });
+});
+
+
+async function init() {
+  const nflState = await fetchJson("https://api.sleeper.app/v1/state/nfl");
+  currentWeek = nflState.display_week || nflState.week || 1;
+}
 init();
+
+
+/* ------------------------------------------
+   SUBTAB HANDLING
+-------------------------------------------*/
+
+function showSubtabs() {
+  const el = document.getElementById("subtabs");
+  el.style.display = "flex";
+
+  document.querySelectorAll("#subtabs .tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelector('#subtabs .tab-btn[data-section="standings"]').classList.add("active");
+
+  currentSection = "standings";
+}
+
+
+/* ------------------------------------------
+   SECTION LOADER
+-------------------------------------------*/
+
+async function loadSection(section) {
+  currentSection = section;
+
+  document.querySelectorAll("#subtabs .tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelector(`#subtabs .tab-btn[data-section="${section}"]`).classList.add("active");
+
+  const container = document.getElementById("content");
+  container.innerHTML = "<div class='section'>Loading...</div>";
+
+  if (!currentLeague) return;
+
+  if (!leagueDataCache[currentLeague.id]) {
+    const [users, rosters] = await Promise.all([
+      fetchJson(`https://api.sleeper.app/v1/league/${currentLeague.id}/users`),
+      fetchJson(`https://api.sleeper.app/v1/league/${currentLeague.id}/rosters`)
+    ]);
+
+    leagueDataCache[currentLeague.id] = { users, rosters };
+  }
+
+  if (section === "standings") renderStandings();
+  if (section === "matchups") renderMatchups();
+  if (section === "power") renderPowerRankings();
+}
+
+
+/* ------------------------------------------
+   STANDINGS
+-------------------------------------------*/
+
+function renderStandings() {
+  const container = document.getElementById("content");
+  const { users, rosters } = leagueDataCache[currentLeague.id];
+
+  // Build owners lookup
+  const owners = {};
+  users.forEach(u => owners[u.user_id] = u);
+
+  // Sort rosters by win %, then points for
+  const sorted = [...rosters].sort((a, b) => {
+    const winA = a.settings.wins;
+    const lossA = a.settings.losses;
+    const pctA = winA + lossA === 0 ? 0 : winA / (winA + lossA);
+
+    const winB = b.settings.wins;
+    const lossB = b.settings.losses;
+    const pctB = winB + lossB === 0 ? 0 : winB / (winB + lossB);
+
+    if (pctB !== pctA) return pctB - pctA;
+    return b.settings.fpts - a.settings.fpts;
+  });
+
+  let html = `<div class='section'><h2>${currentLeague.name} Standings</h2>`;
+
+  if (currentLeague.hasDivisions) {
+    Object.keys(currentLeague.divisions).forEach(divName => {
+      html += `<h3>${divName} Division</h3>`;
+      html += standingsTable(divName, sorted, owners);
+    });
+  } else {
+    html += standingsTable(null, sorted, owners);
+  }
+
+  html += "</div>";
+
+  container.innerHTML = html;
+}
+
+
+// Build standings table
+function standingsTable(divisionName, sortedRosters, owners) {
+  const divTeams = divisionName ? currentLeague.divisions[divisionName] : null;
+
+  let rows = "";
+
+  sortedRosters.forEach((team, idx) => {
+    const owner = owners[team.owner_id];
+    const teamName = owner?.metadata?.team_name || owner?.display_name || "Unknown";
+    if (divisionName && !divTeams.includes(teamName)) return;
+
+    const noteKey = `note_${currentLeague.id}_${team.roster_id}`;
+    const savedNote = localStorage.getItem(noteKey) || "";
+
+    rows += `
+      <tr>
+        <td>${idx + 1}</td>
+        <td>${teamName}</td>
+        <td>${team.settings.wins}-${team.settings.losses}</td>
+        <td>${team.settings.fpts.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td colspan="4">
+          <textarea class="note-box" 
+            data-save="${noteKey}"
+            placeholder="Add note...">${savedNote}</textarea>
+        </td>
+      </tr>
+    `;
+  });
+
+  return `
+    <table>
+      <tr>
+        <th>#</th><th>Team</th><th>Record</th><th>PF</th>
+      </tr>
+      ${rows}
+    </table>
+  `;
+}
+
+
+/* ------------------------------------------
+   MATCHUPS
+-------------------------------------------*/
+
+async function renderMatchups() {
+  const container = document.getElementById("content");
+
+  const matchups = await fetchJson(
+    `https://api.sleeper.app/v1/league/${currentLeague.id}/matchups/${currentWeek}`
+  );
+
+  const { users, rosters } = leagueDataCache[currentLeague.id];
+  const rosterMap = {};
+  rosters.forEach(r => rosterMap[r.roster_id] = r);
+
+  const ownerMap = {};
+  users.forEach(u => ownerMap[u.user_id] = u);
+
+  // Group by matchup_id
+  const grouped = {};
+  matchups.forEach(m => {
+    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
+    grouped[m.matchup_id].push(m);
+  });
+
+  let html = `<div class="section"><h2>${currentLeague.name} — Week ${currentWeek} Matchups</h2>`;
+
+  Object.keys(grouped).forEach(mid => {
+    const teams = grouped[mid];
+    if (!teams[0]) return;
+
+    const t1 = teams[0];
+    const t2 = teams[1];
+
+    const n1 = teamName(rosterMap[t1.roster_id], ownerMap);
+    const n2 = t2 ? teamName(rosterMap[t2.roster_id], ownerMap) : "(Bye)";
+
+    const noteKey = `match_${currentLeague.id}_${mid}`;
+    const savedNote = localStorage.getItem(noteKey) || "";
+
+    html += `
+      <h3>Matchup ${mid}</h3>
+      <table>
+        <tr><th>Team</th><th>Points</th></tr>
+        <tr><td>${n1}</td><td>${t1.points?.toFixed(2) ?? "-"}</td></tr>
+        ${t2 ? `<tr><td>${n2}</td><td>
