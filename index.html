@@ -18,7 +18,6 @@
       font-size: 2rem;
     }
 
-    /* Top League Tabs */
     .league-tabs, .subtabs {
       display: flex;
       gap: 0.5rem;
@@ -37,7 +36,6 @@
       color: white;
     }
 
-    /* Standings & Matchup Layout */
     .section {
       margin-top: 1rem;
     }
@@ -90,14 +88,12 @@
 
 <h1>Fantasy League Dashboard</h1>
 
-<!-- LEAGUE TABS -->
 <div class="league-tabs">
   <button class="tab-btn" data-league="lor">League of Record</button>
   <button class="tab-btn" data-league="ffl">FFL</button>
   <button class="tab-btn" data-league="dynasty">Dynasty Champs</button>
 </div>
 
-<!-- SUBTABS -->
 <div class="subtabs" id="subtabs" style="display:none;">
   <button class="tab-btn" data-section="standings">Standings</button>
   <button class="tab-btn" data-section="matchups">Matchups</button>
@@ -105,7 +101,7 @@
 </div>
 
 <div id="content">
-  <!-- Dynamic content is injected here by JS -->
+  <!-- Dynamic content injected by script.js -->
 </div>
 
 <script src="script.js"></script>
