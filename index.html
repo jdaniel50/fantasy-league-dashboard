@@ -50,6 +50,7 @@
     th, td {
       padding: 0.6rem;
       border-bottom: 1px solid #22263d;
+      vertical-align: middle;
     }
     th {
       background: #1f2340;
@@ -81,6 +82,21 @@
       background: #21263f;
       color: #fff;
       text-align: center;
+    }
+
+    /* Avatar + team layout */
+    .team-with-avatar {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .avatar {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      object-fit: cover;
+      background: #000;
+      flex-shrink: 0;
     }
   </style>
 </head>
