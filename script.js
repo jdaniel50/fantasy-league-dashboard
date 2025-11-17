@@ -1,101 +1,163 @@
-/* ---------------------------------------------------------
-   POWER RANKINGS (AUTO-SORTING)
---------------------------------------------------------- */
+/* ------------------------------------------
+   CONFIGURATION
+-------------------------------------------*/
 
-function renderPowerRankings(league) {
-  const container = document.getElementById("content");
-  const { users, rosters } = leagueDataCache[league.id];
-  const ownerMap = {};
-  users.forEach(u => ownerMap[u.user_id] = u);
+const LEAGUES = {
+  lor: {
+    name: "League of Record",
+    id: "1186844188245356544",
+    hasDivisions: true,
+    divisions: {
+      East: [
+        "Gridiron Man",
+        "Scuttlebucs",
+        "Pigskin Prophtz",
+        "Go Birds",
+        "Game of Throws"
+      ],
+      West: [
+        "Mighty Mallards",
+        "The Aman-Ra Stars",
+        "The Juggernauts",
+        "Overdrive",
+        "Black Panther"
+      ]
+    }
+  },
+  ffl: {
+    name: "FFL",
+    id: "1257084943821967360",
+    hasDivisions: false
+  },
+  dynasty: {
+    name: "Dynasty Champs",
+    id: "1186825886808555520",
+    hasDivisions: true,
+    divisions: {
+      East: [
+        "Black Panther",
+        "Knights of Columbus",
+        "Venomous Vipers",
+        "Swamp Pirates",
+        "Baby Got Dak"
+      ],
+      West: [
+        "Gotham City",
+        "WillXposU",
+        "Howling Commandos",
+        "Aggressive Chickens",
+        "Game of Throws"
+      ]
+    }
+  }
+};
 
-  const lastWeekList = LAST_WEEK_POWER[currentLeagueKey];
-  const week = currentWeek;
+/* ------------------------------------------
+   LAST WEEK (WEEK 10) SNAPSHOTS
+-------------------------------------------*/
 
-  // Build current list with any saved ranks
-  let list = rosters.map(r => {
-    const name = getTeamName(r, ownerMap);
-    const key = `power_${league.id}_${week}_${r.roster_id}`;
-    const savedRank = localStorage.getItem(key);
-    return {
-      roster: r,
-      ownerMap,
-      name,
-      savedRank: savedRank ? Number(savedRank) : null,
-      key
-    };
-  });
+const LAST_WEEK_STANDINGS = {
+  lor: {
+    East: [
+      "Gridiron Man",
+      "Scuttlebucs",
+      "Pigskin Prophtz",
+      "Go Birds",
+      "Game of Throws"
+    ],
+    West: [
+      "Mighty Mallards",
+      "The Aman-Ra Stars",
+      "The Juggernauts",
+      "Overdrive",
+      "Black Panther"
+    ]
+  },
+  ffl: [
+    "UCDUST",
+    "Primetime Primates",
+    "The Chancla Warriors",
+    "Metros Fields of Dreams",
+    "Aggressive Chickens",
+    "StreetGliders",
+    "UnstoppableBoyz",
+    "Team HazeHunters13",
+    "Dom Perignons",
+    "Cabuloso"
+  ],
+  dynasty: {
+    East: [
+      "Black Panther",
+      "Knights of Columbus",
+      "Venomous Vipers",
+      "Swamp Pirates",
+      "Baby Got Dak"
+    ],
+    West: [
+      "Gotham City",
+      "WillXposU",
+      "Howling Commandos",
+      "Aggressive Chickens",
+      "Game of Throws"
+    ]
+  }
+};
 
-  // Sort by rank (1–10) while keeping unrated at bottom
-  list.sort((a, b) => {
-    if (!a.savedRank && !b.savedRank) return 0;
-    if (!a.savedRank) return 1;
-    if (!b.savedRank) return -1;
-    return a.savedRank - b.savedRank;
-  });
+const LAST_WEEK_POWER = {
+  lor: [
+    "Scuttlebucs",
+    "Gridiron Man",
+    "The Aman-Ra Stars",
+    "Mighty Mallards",
+    "The Juggernauts",
+    "Pigskin Prophtz",
+    "Go Birds",
+    "Game of Throws",
+    "Overdrive",
+    "Black Panther"
+  ],
+  ffl: [
+    "Metros Fields of Dreams",
+    "UnstoppableBoyz",
+    "UCDUST",
+    "Primetime Primates",
+    "Team HazeHunters13",
+    "The Chancla Warriors",
+    "StreetGliders",
+    "Cabuloso",
+    "Aggressive Chickens",
+    "Dom Perignons"
+  ],
+  dynasty: [
+    "Gotham City",
+    "Black Panther",
+    "Swamp Pirates",
+    "Knights of Columbus",
+    "WillXposU",
+    "Howling Commandos",
+    "Venomous Vipers",
+    "Baby Got Dak",
+    "Aggressive Chickens",
+    "Game of Throws"
+  ]
+};
 
-  // Build HTML
-  let html = `
-    <div class="section">
-      <h2>${league.name} Power Rankings — Week ${week}</h2>
-      <p class="small-label">Enter rankings. List auto-sorts after each change.</p>
-      <table>
-        <tr>
-          <th>Team</th>
-          <th>Rank</th>
-          <th>Chg</th>
-        </tr>
-  `;
+/* ------------------------------------------
+   GLOBAL STATE
+-------------------------------------------*/
 
-  list.forEach(item => {
-    const prevIndex = lastWeekList.findIndex(
-      x => normalize(x) === normalize(item.name)
-    );
+let currentLeagueKey = null;
+let currentWeek = null;
+const leagueDataCache = {};
 
-    const change = (prevIndex !== -1 && item.savedRank)
-      ? arrow(prevIndex + 1, item.savedRank)
-      : "";
+/* ------------------------------------------
+   UTILITIES
+-------------------------------------------*/
 
-    html += `
-      <tr>
-        <td>${teamAvatarHtml(item.roster, ownerMap)}</td>
-        <td>
-          <input class="power-input"
-            type="number"
-            min="1"
-            max="${rosters.length}"
-            data-save="${item.key}"
-            value="${item.savedRank ?? ""}"
-          />
-        </td>
-        <td>${change}</td>
-      </tr>
-    `;
-  });
-
-  html += "</table></div>";
-  container.innerHTML = html;
-
-  attachAutosortHandlers(league);
+async function fetchJson(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+  return res.json();
 }
 
-/* ---------------------------------------------------------
-   AUTOSORT HANDLERS
---------------------------------------------------------- */
-
-function attachAutosortHandlers(league) {
-  document.querySelectorAll("[data-save]").forEach(el => {
-    el.addEventListener("input", () => {
-      const key = el.dataset.save;
-      const val = el.value;
-
-      if (val === "") {
-        localStorage.removeItem(key);
-      } else {
-        localStorage.setItem(key, val);
-      }
-
-      // Re-render sorted by latest values:
-      renderPowerRankings(league);
-    });
-  });
-}
+function normaliz
