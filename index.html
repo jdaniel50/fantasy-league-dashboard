@@ -4,18 +4,33 @@
   <meta charset="UTF-8" />
   <title>Fantasy League Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+
   <style>
     body {
       font-family: system-ui, sans-serif;
       margin: 0;
-      padding: 1.5rem;
+      padding: 0;
       background: #0b1020;
       color: #f7f7f7;
+      overflow-x: hidden;
     }
 
     h1 {
+      margin: 0;
       margin-bottom: 1rem;
       font-size: 2rem;
+    }
+
+    /* Fixed header */
+    #fixed-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 1.5rem;
+      background: #0b1020;
+      z-index: 9999;
+      border-bottom: 2px solid #1b2038;
     }
 
     .league-tabs, .subtabs {
@@ -39,8 +54,13 @@
       color: white;
     }
 
-    .section {
-      margin-top: 1rem;
+    #presentation-toggle {
+      margin-bottom: 0.75rem;
+    }
+
+    #content {
+      margin-top: 260px;
+      padding: 1.5rem;
     }
 
     table {
@@ -105,41 +125,86 @@
       flex-shrink: 0;
     }
 
-    #presentation-toggle {
-      margin-bottom: 0.75rem;
+    /* Reveal fade-in animation */
+    .fade-in {
+      opacity: 0;
+      animation: fadeIn 0.45s ease forwards;
     }
 
-    #next-reveal {
-      margin-left: 0.5rem;
-      margin-bottom: 0.75rem;
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(6px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Floating Mini Presenter Bubble (Option B1a) */
+    #presenter-bubble {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      width: 200px;
+      background: rgba(20, 25, 45, 0.9);
+      padding: 0.75rem;
+      border-radius: 10px;
+      color: #fff;
+      font-size: 0.85rem;
+      box-shadow: 0 0 12px rgba(0,0,0,0.4);
+      opacity: 0.75;
+      transition: opacity 0.2s;
+      z-index: 99999;
+      display: none;
+    }
+
+    #presenter-bubble:hover {
+      opacity: 1;
+    }
+
+    #presenter-title {
+      font-size: 0.75rem;
+      opacity: 0.8;
+      margin-bottom: 0.4rem;
+    }
+
+    #presenter-next {
+      width: 100%;
+      padding: 0.5rem;
+      border-radius: 6px;
+      background: #4169e1;
+      text-align: center;
+      cursor: pointer;
+      color: white;
+      font-weight: bold;
     }
   </style>
 </head>
+
 <body>
 
-<h1>Fantasy League Dashboard</h1>
+<div id="fixed-header">
+  <h1>Fantasy League Dashboard</h1>
 
-<button id="presentation-toggle" class="tab-btn">
-  Presentation Mode: OFF
-</button>
-<button id="next-reveal" class="tab-btn" style="display:none;">
-  Next
-</button>
+  <button id="presentation-toggle" class="tab-btn">
+    Presentation Mode: OFF
+  </button>
 
-<div class="league-tabs">
-  <button class="tab-btn" data-league="lor">League of Record</button>
-  <button class="tab-btn" data-league="ffl">FFL</button>
-  <button class="tab-btn" data-league="dynasty">Dynasty Champs</button>
+  <div class="league-tabs">
+    <button class="tab-btn" data-league="lor">League of Record</button>
+    <button class="tab-btn" data-league="ffl">FFL</button>
+    <button class="tab-btn" data-league="dynasty">Dynasty Champs</button>
+  </div>
+
+  <div class="subtabs" id="subtabs" style="display:none;">
+    <button class="tab-btn" data-section="standings">Standings</button>
+    <button class="tab-btn" data-section="matchups">Matchups</button>
+    <button class="tab-btn" data-section="power">Power Rankings</button>
+  </div>
 </div>
 
-<div class="subtabs" id="subtabs" style="display:none;">
-  <button class="tab-btn" data-section="standings">Standings</button>
-  <button class="tab-btn" data-section="matchups">Matchups</button>
-  <button class="tab-btn" data-section="power">Power Rankings</button>
-</div>
+<div id="content"></div>
 
-<div id="content">
-  <!-- Dynamic content injected by script.js -->
+<!-- Floating Presenter Bubble -->
+<div id="presenter-bubble">
+  <div id="presenter-title">League — Section</div>
+  <div id="presenter-next">NEXT →</div>
 </div>
 
 <script src="script.js"></script>
