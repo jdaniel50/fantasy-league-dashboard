@@ -12,7 +12,7 @@ const LEAGUES = {
         "Gridiron Man",
         "Scuttlebucs",
         "Pigskin Prophtz",
-        "Go Birds",
+        "🦅Go Birds🦅",
         "Game of Throws"
       ],
       West: [
@@ -62,7 +62,7 @@ const LAST_WEEK_STANDINGS = {
       "Gridiron Man",
       "Scuttlebucs",
       "Pigskin Prophtz",
-      "Go Birds",
+      "🦅Go Birds🦅",
       "Game of Throws"
     ],
     West: [
@@ -111,7 +111,7 @@ const LAST_WEEK_POWER = {
     "Mighty Mallards",
     "The Juggernauts",
     "Pigskin Prophtz",
-    "Go Birds",
+    "🦅Go Birds🦅",
     "Game of Throws",
     "Overdrive",
     "Black Panther"
@@ -149,6 +149,9 @@ const LAST_WEEK_POWER = {
 let currentLeagueKey = null;
 let currentWeek = null;
 const leagueDataCache = {};
+
+let presentationMode = false;
+let revealIndex = 0;
 
 /* ------------------------------------------
    UTILITIES
@@ -200,14 +203,17 @@ function arrow(prev, now) {
 }
 
 /* ------------------------------------------
-   INIT
+   DOMCONTENTLOADED
 -------------------------------------------*/
 
 document.addEventListener("DOMContentLoaded", () => {
   const leagueButtons = document.querySelectorAll(".league-tabs .tab-btn");
   const subtabsEl = document.getElementById("subtabs");
   const subtabButtons = subtabsEl.querySelectorAll(".tab-btn");
+  const toggleBtn = document.getElementById("presentation-toggle");
+  const nextBtn = document.getElementById("next-reveal");
 
+  // League tabs
   leagueButtons.forEach(btn => {
     btn.addEventListener("click", () => {
       leagueButtons.forEach(b => b.classList.remove("active"));
@@ -224,6 +230,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Subtabs
   subtabButtons.forEach(btn => {
     btn.addEventListener("click", () => {
       subtabButtons.forEach(b => b.classList.remove("active"));
@@ -232,6 +239,32 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   });
 
+  // Presentation toggle
+  toggleBtn.addEventListener("click", () => {
+    presentationMode = !presentationMode;
+    toggleBtn.textContent = presentationMode
+      ? "Presentation Mode: ON"
+      : "Presentation Mode: OFF";
+
+    revealIndex = 0;
+    nextBtn.style.display = presentationMode ? "inline-block" : "none";
+
+    if (currentLeagueKey) {
+      const activeSection = document
+        .querySelector(".subtabs .tab-btn.active")
+        ?.dataset.section;
+      if (activeSection) loadSection(activeSection);
+    }
+  });
+
+  // Next reveal
+  nextBtn.addEventListener("click", () => {
+    if (!presentationMode) return;
+    revealIndex++;
+    applyReveal();
+  });
+
+  // NFL state
   fetchJson("https://api.sleeper.app/v1/state/nfl")
     .then(state => {
       currentWeek = state.display_week || state.week || 11;
@@ -274,7 +307,7 @@ async function loadSection(section) {
 }
 
 /* ------------------------------------------
-   STANDINGS (BY DIVISION WHERE APPLICABLE)
+   STANDINGS
 -------------------------------------------*/
 
 function renderStandings(league) {
@@ -328,6 +361,10 @@ function renderStandings(league) {
   container.innerHTML = html;
 
   attachNoteHandlers();
+  if (presentationMode) {
+    revealIndex = 0;
+    applyReveal();
+  }
 }
 
 function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, lastWeekList) {
@@ -341,7 +378,7 @@ function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, las
     });
   }
 
-  let rows = "";
+  let groups = "";
 
   filtered.forEach((team, idx) => {
     const name = getTeamName(team, ownerMap);
@@ -356,19 +393,21 @@ function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, las
     const noteKey = `stand_note_${league.id}_${team.roster_id}`;
     const savedNote = localStorage.getItem(noteKey) || "";
 
-    rows += `
-      <tr>
-        <td>${thisRank}</td>
-        <td>${teamAvatarHtml(team, ownerMap)}</td>
-        <td>${team.settings.wins || 0}-${team.settings.losses || 0}</td>
-        <td>${Number(team.settings.fpts ?? 0).toFixed(2)}</td>
-        <td>${changeDisplay}</td>
-      </tr>
-      <tr>
-        <td colspan="5">
-          <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
-        </td>
-      </tr>
+    groups += `
+      <tbody class="reveal-item">
+        <tr>
+          <td>${thisRank}</td>
+          <td>${teamAvatarHtml(team, ownerMap)}</td>
+          <td>${team.settings.wins || 0}-${team.settings.losses || 0}</td>
+          <td>${Number(team.settings.fpts ?? 0).toFixed(2)}</td>
+          <td>${changeDisplay}</td>
+        </tr>
+        <tr>
+          <td colspan="5">
+            <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
+          </td>
+        </tr>
+      </tbody>
     `;
   });
 
@@ -381,13 +420,13 @@ function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, las
         <th>PF</th>
         <th>Chg</th>
       </tr>
-      ${rows}
+      ${groups}
     </table>
   `;
 }
 
 /* ------------------------------------------
-   MATCHUPS (WITH NOTES)
+   MATCHUPS
 -------------------------------------------*/
 
 async function renderMatchups(league) {
@@ -438,23 +477,25 @@ async function renderMatchups(league) {
       const savedNote = localStorage.getItem(noteKey) || "";
 
       html += `
-        <h3>Matchup ${mid}</h3>
-        <table>
-          <tr><th>Team</th><th>Points</th></tr>
-          <tr>
-            <td>${teamAvatarHtml(rosterMap[t1.roster_id], ownerMap)}</td>
-            <td><strong>${p1}</strong></td>
-          </tr>
-          ${
-            t2
-              ? `<tr>
-                  <td>${teamAvatarHtml(rosterMap[t2.roster_id], ownerMap)}</td>
-                  <td><strong>${p2}</strong></td>
-                </tr>`
-              : ""
-          }
-        </table>
-        <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
+        <div class="reveal-item">
+          <h3>Matchup ${mid}</h3>
+          <table>
+            <tr><th>Team</th><th>Points</th></tr>
+            <tr>
+              <td>${teamAvatarHtml(rosterMap[t1.roster_id], ownerMap)}</td>
+              <td><strong>${p1}</strong></td>
+            </tr>
+            ${
+              t2
+                ? `<tr>
+                    <td>${teamAvatarHtml(rosterMap[t2.roster_id], ownerMap)}</td>
+                    <td><strong>${p2}</strong></td>
+                  </tr>`
+                : ""
+            }
+          </table>
+          <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
+        </div>
       `;
     });
 
@@ -462,10 +503,14 @@ async function renderMatchups(league) {
   container.innerHTML = html;
 
   attachNoteHandlers();
+  if (presentationMode) {
+    revealIndex = 0;
+    applyReveal();
+  }
 }
 
 /* ------------------------------------------
-   POWER RANKINGS (AUTO-SORT + NOTES)
+   POWER RANKINGS
 -------------------------------------------*/
 
 function renderPowerRankings(league) {
@@ -525,28 +570,30 @@ function renderPowerRankings(league) {
         : "";
 
     html += `
-      <tr>
-        <td>${teamAvatarHtml(item.roster, item.ownerMap)}</td>
-        <td>
-          <input
-            class="power-input"
-            type="number"
-            min="1"
-            max="${rosters.length}"
-            data-save="${item.rankKey}"
-            value="${item.rank ?? ""}"
-          />
-        </td>
-        <td>${change}</td>
-      </tr>
-      <tr>
-        <td colspan="3">
-          <textarea
-            class="note-box"
-            data-save="${item.noteKey}"
-            placeholder="Add note...">${item.note}</textarea>
-        </td>
-      </tr>
+      <tbody class="reveal-item">
+        <tr>
+          <td>${teamAvatarHtml(item.roster, item.ownerMap)}</td>
+          <td>
+            <input
+              class="power-input"
+              type="number"
+              min="1"
+              max="${rosters.length}"
+              data-save="${item.rankKey}"
+              value="${item.rank ?? ""}"
+            />
+          </td>
+          <td>${change}</td>
+        </tr>
+        <tr>
+          <td colspan="3">
+            <textarea
+              class="note-box"
+              data-save="${item.noteKey}"
+              placeholder="Add note...">${item.note}</textarea>
+          </td>
+        </tr>
+      </tbody>
     `;
   });
 
@@ -555,6 +602,51 @@ function renderPowerRankings(league) {
 
   attachPowerHandlers(league);
   attachNoteHandlers();
+  if (presentationMode) {
+    revealIndex = 0;
+    applyReveal();
+  }
+}
+
+/* ------------------------------------------
+   PRESENTATION MODE REVEAL
+-------------------------------------------*/
+
+function applyReveal() {
+  if (!presentationMode) return;
+
+  const sectionBtn = document.querySelector(".subtabs .tab-btn.active");
+  const section = sectionBtn?.dataset.section || "standings";
+  const items = Array.from(document.querySelectorAll(".reveal-item"));
+  const nextBtn = document.getElementById("next-reveal");
+
+  if (!items.length) {
+    nextBtn.style.display = "none";
+    return;
+  }
+
+  // Hide all
+  items.forEach(el => {
+    el.style.display = "none";
+  });
+
+  const total = items.length;
+
+  if (section === "power") {
+    // reveal from bottom (10 -> 1)
+    for (let i = 0; i < revealIndex && i < total; i++) {
+      const idxFromEnd = total - 1 - i;
+      items[idxFromEnd].style.display = "";
+    }
+  } else {
+    // standings + matchups: top-down
+    for (let i = 0; i < revealIndex && i < total; i++) {
+      items[i].style.display = "";
+    }
+  }
+
+  nextBtn.style.display =
+    presentationMode && revealIndex < total ? "inline-block" : "none";
 }
 
 /* ------------------------------------------
