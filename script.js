@@ -160,4 +160,438 @@ async function fetchJson(url) {
   return res.json();
 }
 
-function normaliz
+function normalize(str) {
+  return String(str).trim().toLowerCase().replace(/\s+/g, "");
+}
+
+function getTeamName(roster, ownerMap) {
+  const owner = ownerMap[roster.owner_id];
+  return (
+    owner?.metadata?.team_name ||
+    owner?.display_name ||
+    "Unknown"
+  );
+}
+
+function teamAvatarHtml(roster, ownerMap) {
+  if (!roster) {
+    return `<div class="team-with-avatar"><span>Unknown</span></div>`;
+  }
+  const owner = ownerMap[roster.owner_id];
+  const name = getTeamName(roster, ownerMap);
+  const avatarId = owner?.avatar;
+  if (!avatarId) {
+    return `<div class="team-with-avatar"><span>${name}</span></div>`;
+  }
+  const url = `https://sleepercdn.com/avatars/thumbs/${avatarId}`;
+  return `
+    <div class="team-with-avatar">
+      <img class="avatar" src="${url}" alt="${name} logo" />
+      <span>${name}</span>
+    </div>
+  `;
+}
+
+function arrow(prev, now) {
+  if (!prev || !now || prev === now) return "";
+  const diff = prev - now;
+  const dir = diff > 0 ? "↑" : "↓";
+  return `${dir}${Math.abs(diff)}`;
+}
+
+/* ------------------------------------------
+   INIT
+-------------------------------------------*/
+
+document.addEventListener("DOMContentLoaded", () => {
+  const leagueButtons = document.querySelectorAll(".league-tabs .tab-btn");
+  const subtabsEl = document.getElementById("subtabs");
+  const subtabButtons = subtabsEl.querySelectorAll(".tab-btn");
+
+  leagueButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      leagueButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      currentLeagueKey = btn.dataset.league;
+
+      subtabsEl.style.display = "flex";
+      subtabButtons.forEach(b => b.classList.remove("active"));
+      subtabsEl
+        .querySelector('[data-section="standings"]')
+        .classList.add("active");
+
+      loadSection("standings");
+    });
+  });
+
+  subtabButtons.forEach(btn => {
+    btn.addEventListener("click", () => {
+      subtabButtons.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      loadSection(btn.dataset.section);
+    });
+  });
+
+  fetchJson("https://api.sleeper.app/v1/state/nfl")
+    .then(state => {
+      currentWeek = state.display_week || state.week || 11;
+    })
+    .catch(() => {
+      currentWeek = 11;
+    });
+
+  if (leagueButtons[0]) leagueButtons[0].click();
+});
+
+/* ------------------------------------------
+   SECTION LOADER
+-------------------------------------------*/
+
+async function loadSection(section) {
+  const container = document.getElementById("content");
+  container.innerHTML = "<div class='section'>Loading...</div>";
+
+  if (!currentLeagueKey) return;
+  const league = LEAGUES[currentLeagueKey];
+
+  if (!leagueDataCache[league.id]) {
+    try {
+      const [users, rosters] = await Promise.all([
+        fetchJson(`https://api.sleeper.app/v1/league/${league.id}/users`),
+        fetchJson(`https://api.sleeper.app/v1/league/${league.id}/rosters`)
+      ]);
+      leagueDataCache[league.id] = { users, rosters };
+    } catch (err) {
+      console.error(err);
+      container.innerHTML = "<div class='section'>Could not load league data.</div>";
+      return;
+    }
+  }
+
+  if (section === "standings") renderStandings(league);
+  if (section === "matchups") renderMatchups(league);
+  if (section === "power") renderPowerRankings(league);
+}
+
+/* ------------------------------------------
+   STANDINGS (BY DIVISION WHERE APPLICABLE)
+-------------------------------------------*/
+
+function renderStandings(league) {
+  const container = document.getElementById("content");
+  const { users, rosters } = leagueDataCache[league.id];
+
+  const ownerMap = {};
+  users.forEach(u => (ownerMap[u.user_id] = u));
+
+  const sorted = [...rosters].sort((a, b) => {
+    const wa = a.settings.wins || 0;
+    const la = a.settings.losses || 0;
+    const wb = b.settings.wins || 0;
+    const lb = b.settings.losses || 0;
+    const pctA = wa + la === 0 ? 0 : wa / (wa + la);
+    const pctB = wb + lb === 0 ? 0 : wb / (wb + lb);
+    if (pctB !== pctA) return pctB - pctA;
+    const pfa = Number(a.settings.fpts ?? 0);
+    const pfb = Number(b.settings.fpts ?? 0);
+    return pfb - pfa;
+  });
+
+  const lastWeek = LAST_WEEK_STANDINGS[currentLeagueKey];
+
+  let html = `<div class="section"><h2>${league.name} Standings</h2>`;
+
+  if (league.hasDivisions && league.divisions) {
+    Object.keys(league.divisions).forEach(divName => {
+      const divList = league.divisions[divName];
+      const lastWeekList = lastWeek[divName];
+      html += `<h3>${divName} Division</h3>`;
+      html += buildStandingsTable(
+        league,
+        sorted,
+        ownerMap,
+        divList,
+        lastWeekList
+      );
+    });
+  } else {
+    html += buildStandingsTable(
+      league,
+      sorted,
+      ownerMap,
+      null,
+      lastWeek
+    );
+  }
+
+  html += "</div>";
+  container.innerHTML = html;
+
+  attachNoteHandlers();
+}
+
+function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, lastWeekList) {
+  let filtered = sortedRosters;
+
+  if (divisionNames) {
+    const divNorms = divisionNames.map(normalize);
+    filtered = sortedRosters.filter(r => {
+      const name = getTeamName(r, ownerMap);
+      return divNorms.includes(normalize(name));
+    });
+  }
+
+  let rows = "";
+
+  filtered.forEach((team, idx) => {
+    const name = getTeamName(team, ownerMap);
+    const norm = normalize(name);
+    const prevIndex = Array.isArray(lastWeekList)
+      ? lastWeekList.findIndex(x => normalize(x) === norm)
+      : -1;
+    const thisRank = idx + 1;
+    const prevRank = prevIndex === -1 ? null : prevIndex + 1;
+    const changeDisplay = prevRank ? arrow(prevRank, thisRank) : "";
+
+    const noteKey = `stand_note_${league.id}_${team.roster_id}`;
+    const savedNote = localStorage.getItem(noteKey) || "";
+
+    rows += `
+      <tr>
+        <td>${thisRank}</td>
+        <td>${teamAvatarHtml(team, ownerMap)}</td>
+        <td>${team.settings.wins || 0}-${team.settings.losses || 0}</td>
+        <td>${Number(team.settings.fpts ?? 0).toFixed(2)}</td>
+        <td>${changeDisplay}</td>
+      </tr>
+      <tr>
+        <td colspan="5">
+          <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
+        </td>
+      </tr>
+    `;
+  });
+
+  return `
+    <table>
+      <tr>
+        <th>#</th>
+        <th>Team</th>
+        <th>Record</th>
+        <th>PF</th>
+        <th>Chg</th>
+      </tr>
+      ${rows}
+    </table>
+  `;
+}
+
+/* ------------------------------------------
+   MATCHUPS (WITH NOTES)
+-------------------------------------------*/
+
+async function renderMatchups(league) {
+  const container = document.getElementById("content");
+  const { users, rosters } = leagueDataCache[league.id];
+
+  const ownerMap = {};
+  users.forEach(u => (ownerMap[u.user_id] = u));
+
+  const week = currentWeek || 1;
+  container.innerHTML = `<div class="section"><h2>${league.name} — Week ${week} Matchups</h2><div>Loading...</div></div>`;
+
+  let matchups;
+  try {
+    matchups = await fetchJson(
+      `https://api.sleeper.app/v1/league/${league.id}/matchups/${week}`
+    );
+  } catch (err) {
+    console.error(err);
+    container.innerHTML = `<div class="section"><h2>${league.name} — Week ${week} Matchups</h2><div>Could not load matchups.</div></div>`;
+    return;
+  }
+
+  const rosterMap = {};
+  rosters.forEach(r => (rosterMap[r.roster_id] = r));
+
+  const grouped = {};
+  matchups.forEach(m => {
+    if (!grouped[m.matchup_id]) grouped[m.matchup_id] = [];
+    grouped[m.matchup_id].push(m);
+  });
+
+  let html = `<div class="section"><h2>${league.name} — Week ${week} Matchups</h2>`;
+
+  Object.keys(grouped)
+    .sort((a, b) => Number(a) - Number(b))
+    .forEach(mid => {
+      const teams = grouped[mid];
+      if (!teams[0]) return;
+      const t1 = teams[0];
+      const t2 = teams[1];
+
+      const p1 = typeof t1.points === "number" ? t1.points.toFixed(2) : "-";
+      const p2 =
+        t2 && typeof t2.points === "number" ? t2.points.toFixed(2) : "-";
+
+      const noteKey = `match_note_${league.id}_${week}_${mid}`;
+      const savedNote = localStorage.getItem(noteKey) || "";
+
+      html += `
+        <h3>Matchup ${mid}</h3>
+        <table>
+          <tr><th>Team</th><th>Points</th></tr>
+          <tr>
+            <td>${teamAvatarHtml(rosterMap[t1.roster_id], ownerMap)}</td>
+            <td><strong>${p1}</strong></td>
+          </tr>
+          ${
+            t2
+              ? `<tr>
+                  <td>${teamAvatarHtml(rosterMap[t2.roster_id], ownerMap)}</td>
+                  <td><strong>${p2}</strong></td>
+                </tr>`
+              : ""
+          }
+        </table>
+        <textarea class="note-box" data-save="${noteKey}" placeholder="Add note...">${savedNote}</textarea>
+      `;
+    });
+
+  html += "</div>";
+  container.innerHTML = html;
+
+  attachNoteHandlers();
+}
+
+/* ------------------------------------------
+   POWER RANKINGS (AUTO-SORT + NOTES)
+-------------------------------------------*/
+
+function renderPowerRankings(league) {
+  const container = document.getElementById("content");
+  const { users, rosters } = leagueDataCache[league.id];
+
+  const ownerMap = {};
+  users.forEach(u => (ownerMap[u.user_id] = u));
+
+  const lastWeekList = LAST_WEEK_POWER[currentLeagueKey];
+  const week = currentWeek || 1;
+
+  let list = rosters.map(r => {
+    const name = getTeamName(r, ownerMap);
+    const rankKey = `power_${league.id}_${week}_${r.roster_id}`;
+    const noteKey = `power_note_${league.id}_${week}_${r.roster_id}`;
+    const savedRank = localStorage.getItem(rankKey);
+    const savedNote = localStorage.getItem(noteKey) || "";
+    return {
+      roster: r,
+      ownerMap,
+      name,
+      rankKey,
+      noteKey,
+      rank: savedRank ? Number(savedRank) : null,
+      note: savedNote
+    };
+  });
+
+  // sort by rank, blanks at bottom
+  list.sort((a, b) => {
+    if (!a.rank && !b.rank) return 0;
+    if (!a.rank) return 1;
+    if (!b.rank) return -1;
+    return a.rank - b.rank;
+  });
+
+  let html = `
+    <div class="section">
+      <h2>${league.name} Power Rankings — Week ${week}</h2>
+      <p class="small-label">Enter rankings. List auto-sorts after each change. Notes save automatically.</p>
+      <table>
+        <tr>
+          <th>Team</th>
+          <th>Rank</th>
+          <th>Chg</th>
+        </tr>
+  `;
+
+  list.forEach(item => {
+    const prevIndex = lastWeekList.findIndex(
+      x => normalize(x) === normalize(item.name)
+    );
+    const change =
+      prevIndex !== -1 && item.rank
+        ? arrow(prevIndex + 1, item.rank)
+        : "";
+
+    html += `
+      <tr>
+        <td>${teamAvatarHtml(item.roster, item.ownerMap)}</td>
+        <td>
+          <input
+            class="power-input"
+            type="number"
+            min="1"
+            max="${rosters.length}"
+            data-save="${item.rankKey}"
+            value="${item.rank ?? ""}"
+          />
+        </td>
+        <td>${change}</td>
+      </tr>
+      <tr>
+        <td colspan="3">
+          <textarea
+            class="note-box"
+            data-save="${item.noteKey}"
+            placeholder="Add note...">${item.note}</textarea>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += "</table></div>";
+  container.innerHTML = html;
+
+  attachPowerHandlers(league);
+  attachNoteHandlers();
+}
+
+/* ------------------------------------------
+   AUTOSAVE HELPERS
+-------------------------------------------*/
+
+function attachNoteHandlers() {
+  const notes = document.querySelectorAll(".note-box[data-save]");
+  notes.forEach(el => {
+    el.removeEventListener("input", noteInputHandler);
+    el.addEventListener("input", noteInputHandler);
+  });
+}
+
+function noteInputHandler(e) {
+  const key = e.target.dataset.save;
+  if (!key) return;
+  localStorage.setItem(key, e.target.value);
+}
+
+function attachPowerHandlers(league) {
+  const inputs = document.querySelectorAll(".power-input[data-save]");
+  inputs.forEach(el => {
+    el.removeEventListener("input", powerInputHandler);
+    el.addEventListener("input", powerInputHandler.bind(null, league));
+  });
+}
+
+function powerInputHandler(league, e) {
+  const key = e.target.dataset.save;
+  const val = e.target.value;
+  if (!key) return;
+  if (val === "") {
+    localStorage.removeItem(key);
+  } else {
+    localStorage.setItem(key, val);
+  }
+  // re-render to re-sort after change
+  renderPowerRankings(league);
+}
