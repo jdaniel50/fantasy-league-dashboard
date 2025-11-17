@@ -16,20 +16,15 @@
     h1 {
       margin-bottom: 1rem;
       font-size: 2rem;
-    }<button id="presentation-toggle" class="tab-btn" style="margin-bottom: 1rem;">
-  Presentation Mode: OFF
-</button>
-
-<button id="next-reveal" class="tab-btn" style="display:none; margin-bottom:1rem;">
-  Next
-</button>
-
+    }
 
     .league-tabs, .subtabs {
       display: flex;
       gap: 0.5rem;
       margin-bottom: 1rem;
+      flex-wrap: wrap;
     }
+
     .tab-btn {
       padding: 0.5rem 0.9rem;
       background: #1b2038;
@@ -38,6 +33,7 @@
       cursor: pointer;
       color: #e0e0e0;
     }
+
     .tab-btn.active {
       background: #4169e1;
       color: white;
@@ -46,6 +42,7 @@
     .section {
       margin-top: 1rem;
     }
+
     table {
       width: 100%;
       border-collapse: collapse;
@@ -54,15 +51,18 @@
       border-radius: 6px;
       overflow: hidden;
     }
+
     th, td {
       padding: 0.6rem;
       border-bottom: 1px solid #22263d;
       vertical-align: middle;
     }
+
     th {
       background: #1f2340;
       text-align: left;
     }
+
     .note-box {
       width: 100%;
       margin-top: 0.4rem;
@@ -71,9 +71,8 @@
       border: none;
       background: #21263f;
       color: #ffffff;
-    }
-    #matchups, #standings, #power-rankings {
-      margin-top: 1rem;
+      resize: vertical;
+      min-height: 48px;
     }
 
     .small-label {
@@ -91,12 +90,12 @@
       text-align: center;
     }
 
-    /* Avatar + team layout */
     .team-with-avatar {
       display: flex;
       align-items: center;
       gap: 0.4rem;
     }
+
     .avatar {
       width: 24px;
       height: 24px;
@@ -105,11 +104,27 @@
       background: #000;
       flex-shrink: 0;
     }
+
+    #presentation-toggle {
+      margin-bottom: 0.75rem;
+    }
+
+    #next-reveal {
+      margin-left: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
   </style>
 </head>
 <body>
 
 <h1>Fantasy League Dashboard</h1>
+
+<button id="presentation-toggle" class="tab-btn">
+  Presentation Mode: OFF
+</button>
+<button id="next-reveal" class="tab-btn" style="display:none;">
+  Next
+</button>
 
 <div class="league-tabs">
   <button class="tab-btn" data-league="lor">League of Record</button>
