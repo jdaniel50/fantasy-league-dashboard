@@ -95,6 +95,22 @@
       min-height: 48px;
     }
 
+    .presentation-note-view {
+      display: none;
+      font-weight: bold;
+      padding: 0.4rem 0;
+      white-space: pre-wrap;
+      color: #ffffff;
+    }
+
+    .presentation-mode .presentation-note-view {
+      display: block;
+    }
+
+    .presentation-mode .note-box {
+      display: none;
+    }
+
     .small-label {
       font-size: 0.85rem;
       opacity: 0.85;
@@ -122,7 +138,6 @@
       border-radius: 50%;
       object-fit: cover;
       background: #000;
-      flex-shrink: 0;
     }
 
     /* Reveal fade-in animation */
@@ -136,7 +151,7 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* Floating Mini Presenter Bubble (Option B1a) */
+    /* Floating Presenter Bubble (Option B1a) */
     #presenter-bubble {
       position: fixed;
       bottom: 20px;
@@ -188,7 +203,7 @@
 
   <div class="league-tabs">
     <button class="tab-btn" data-league="lor">League of Record</button>
-    <button class="tab-btn" data-league="ffl">FFL</button>
+    <button class="tab-btn" data-leleague="ffl">FFL</button>
     <button class="tab-btn" data-league="dynasty">Dynasty Champs</button>
   </div>
 
