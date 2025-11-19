@@ -153,8 +153,92 @@ const leagueDataCache = {};
 let presentationMode = false;
 let revealIndex = 0;
 
-/* Floating presenter bubble */
 let presenterBubble, presenterTitle, presenterNext;
+
+/* ------------------------------------------
+   TEAM COLOR / GRADIENT SUPPORT
+-------------------------------------------*/
+
+const teamColorCache = {};
+const BASE_DARK = { r: 12, g: 16, b: 32 };
+
+const colorCanvas = document.createElement("canvas");
+colorCanvas.width = 16;
+colorCanvas.height = 16;
+const colorCtx = colorCanvas.getContext("2d");
+
+function computeAvatarColor(avatarId) {
+  return new Promise(resolve => {
+    if (!avatarId) {
+      resolve(BASE_DARK);
+      return;
+    }
+    if (teamColorCache[avatarId]) {
+      resolve(teamColorCache[avatarId]);
+      return;
+    }
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = `https://sleepercdn.com/avatars/thumbs/${avatarId}`;
+
+    img.onload = () => {
+      try {
+        colorCtx.clearRect(0, 0, 16, 16);
+        colorCtx.drawImage(img, 0, 0, 16, 16);
+        const data = colorCtx.getImageData(0, 0, 16, 16).data;
+        let r = 0, g = 0, b = 0, count = 0;
+
+        for (let i = 0; i < data.length; i += 4) {
+          const alpha = data[i + 3];
+          if (alpha < 128) continue;
+          r += data[i];
+          g += data[i + 1];
+          b += data[i + 2];
+          count++;
+        }
+
+        if (!count) {
+          teamColorCache[avatarId] = BASE_DARK;
+          resolve(BASE_DARK);
+          return;
+        }
+
+        const color = {
+          r: Math.round(r / count),
+          g: Math.round(g / count),
+          b: Math.round(b / count)
+        };
+        teamColorCache[avatarId] = color;
+        resolve(color);
+      } catch (err) {
+        teamColorCache[avatarId] = BASE_DARK;
+        resolve(BASE_DARK);
+      }
+    };
+
+    img.onerror = () => {
+      teamColorCache[avatarId] = BASE_DARK;
+      resolve(BASE_DARK);
+    };
+  });
+}
+
+function applyRowGradients() {
+  const rows = document.querySelectorAll("[data-avatar-id]");
+  rows.forEach(el => {
+    const avatarId = el.dataset.avatarId;
+    if (!avatarId) {
+      el.style.background =
+        "linear-gradient(to right, rgba(12,16,32,0.92), rgba(21,26,46,0.6))";
+      return;
+    }
+    computeAvatarColor(avatarId).then(color => {
+      const { r, g, b } = color;
+      el.style.background = `linear-gradient(to right, rgba(12,16,32,0.92), rgba(${r},${g},${b},0.42))`;
+    });
+  });
+}
 
 /* ------------------------------------------
    UTILITIES
@@ -180,7 +264,7 @@ function getTeamName(roster, ownerMap) {
 }
 
 function teamAvatarHtml(roster, ownerMap) {
-  if (!roster) 
+  if (!roster)
     return `<div class="team-with-avatar"><span>Unknown</span></div>`;
 
   const owner = ownerMap[roster.owner_id];
@@ -267,7 +351,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (currentLeagueKey) {
       const activeSection = document
         .querySelector(".subtabs .tab-btn.active")?.dataset.section;
-
       if (activeSection) loadSection(activeSection);
     }
   });
@@ -295,25 +378,23 @@ document.addEventListener("DOMContentLoaded", () => {
   /* Select the first league by default */
   leagueButtons[0]?.click();
 });
+
 /* ------------------------------------------
    KEYBOARD SHORTCUTS
 -------------------------------------------*/
 
 function handleKeyboardShortcuts(e) {
   if (!presentationMode) {
-    // League switching outside presentation mode
     if (e.key === "q") selectLeague("lor");
     if (e.key === "w") selectLeague("ffl");
     if (e.key === "e") selectLeague("dynasty");
 
-    // Subtab switching
     if (e.key === "1") switchSubtab("standings");
     if (e.key === "2") switchSubtab("matchups");
     if (e.key === "3") switchSubtab("power");
     return;
   }
 
-  // Presentation Mode Controls
   switch (e.key) {
     case "ArrowRight":
     case " ":
@@ -466,6 +547,8 @@ function renderStandings(league) {
     syncPresentationNotes();
     applyReveal();
   }
+
+  applyRowGradients();
 }
 
 function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, lastWeekList) {
@@ -491,9 +574,11 @@ function buildStandingsTable(league, sortedRosters, ownerMap, divisionNames, las
 
     const noteKey = `stand_note_${league.id}_${team.roster_id}`;
     const savedNote = localStorage.getItem(noteKey) || "";
+    const owner = ownerMap[team.owner_id];
+    const avatarId = owner?.avatar || "";
 
     groups += `
-      <tbody class="reveal-item fade-in">
+      <tbody class="reveal-item fade-in" data-avatar-id="${avatarId}">
         <tr>
           <td>${thisRank}</td>
           <td>${teamAvatarHtml(team, ownerMap)}</td>
@@ -572,13 +657,17 @@ async function renderMatchups(league) {
       const noteKey = `match_note_${league.id}_${week}_${mid}`;
       const savedNote = localStorage.getItem(noteKey) || "";
 
+      const roster1 = rosterMap[t1.roster_id];
+      const owner1 = roster1 ? ownerMap[roster1.owner_id] : null;
+      const avatarId = owner1?.avatar || "";
+
       html += `
-        <div class="reveal-item fade-in">
+        <div class="reveal-item fade-in" data-avatar-id="${avatarId}">
           <h3>Matchup ${mid}</h3>
           <table>
             <tr><th>Team</th><th>Points</th></tr>
             <tr>
-              <td>${teamAvatarHtml(rosterMap[t1.roster_id], ownerMap)}</td>
+              <td>${teamAvatarHtml(roster1, ownerMap)}</td>
               <td><strong>${p1}</strong></td>
             </tr>
             ${
@@ -607,13 +696,15 @@ async function renderMatchups(league) {
     syncPresentationNotes();
     applyReveal();
   }
+
+  applyRowGradients();
 }
 
 /* ------------------------------------------
    POWER RANKINGS
 -------------------------------------------*/
 
-function renderPowerRankings(league) {  
+function renderPowerRankings(league) {
   const container = document.getElementById("content");
   const { users, rosters } = leagueDataCache[league.id];
 
@@ -653,6 +744,7 @@ function renderPowerRankings(league) {
       <p class="small-label">Enter rankings. List auto-sorts after each change.</p>
       <table>
         <tr>
+          <th>#</th>
           <th>Team</th>
           <th>Rank</th>
           <th>Chg</th>
@@ -668,9 +760,13 @@ function renderPowerRankings(league) {
         ? arrow(prevIndex + 1, item.rank)
         : "";
 
+    const owner = item.ownerMap[item.roster.owner_id];
+    const avatarId = owner?.avatar || "";
+
     html += `
-      <tbody class="reveal-item fade-in">
+      <tbody class="reveal-item fade-in" data-avatar-id="${avatarId}">
         <tr>
+          <td>${item.rank ?? ""}</td>
           <td>${teamAvatarHtml(item.roster, item.ownerMap)}</td>
           <td>
             <input
@@ -685,7 +781,7 @@ function renderPowerRankings(league) {
           <td>${change}</td>
         </tr>
         <tr>
-          <td colspan="3">
+          <td colspan="4">
             <div class="presentation-note-view" data-note-view="${item.noteKey}">${item.note}</div>
             <textarea class="note-box" data-save="${item.noteKey}" placeholder="Add note...">${item.note}</textarea>
           </td>
@@ -706,10 +802,12 @@ function renderPowerRankings(league) {
     syncPresentationNotes();
     applyReveal();
   }
+
+  applyRowGradients();
 }
 
 /* ------------------------------------------
-   PRESENTATION MODE: REVEAL LOGIC
+   PRESENTATION MODE REVEAL
 -------------------------------------------*/
 
 function applyReveal() {
@@ -719,13 +817,15 @@ function applyReveal() {
   const items = Array.from(document.querySelectorAll(".reveal-item"));
   const total = items.length;
 
-  items.forEach(el => el.style.display = "none");
+  items.forEach(el => {
+    el.style.display = "none";
+  });
 
   if (section === "power") {
     // Reveal from bottom (10 → 1)
     for (let i = 0; i < revealIndex && i < total; i++) {
-      const indexFromBottom = total - 1 - i;
-      const item = items[indexFromBottom];
+      const idx = total - 1 - i;
+      const item = items[idx];
       item.style.display = "";
       item.classList.add("fade-in");
     }
@@ -801,7 +901,7 @@ function attachNoteHandlers() {
 function noteInputHandler(e) {
   const key = e.target.dataset.save;
   localStorage.setItem(key, e.target.value);
-  syncPresentationNotes(); // sync immediately
+  syncPresentationNotes();
 }
 
 function attachPowerHandlers(league) {
